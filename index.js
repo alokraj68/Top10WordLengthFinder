@@ -1,124 +1,118 @@
+//ecma version : 2016
+//code by : alokraj68
+//to find top 10 words from the document and get its occurances synonyms and parts of speechs consoled.
+//please note the api is not returning syn and mean hence it will tell no synonyms found.
+
 //all requires
 const request = require('request');
-var fileContents;
 const APIkey = "dict.1.1.20170610T055246Z.0f11bdc42e7b693a.eefbde961e10106a4efa7d852287caa49ecc68cf";
-//get file content to var using request
-request('http://norvig.com/big.txt', (err, res, body) => {
-    if (err) {
-        return console.log(err);
-    }
-    fileContents = body;
-    // console.log(fileContents.length);
-    var top10Words = getUniqueWordAndFrequency(fileContents, 10);
-    // console.log(top10Words.length);
-    processWords(top10Words.topwords).then(function (outputJson) {
-        console.log({
-            "output": outputJson
+
+// getWordDetails("time").then(function (outputJson) {
+//     console.log(outputJson);
+// }, function (err) {
+//     console.error(err);
+// });
+
+getFileFromServer();
+//get latest file content to var using request
+function getFileFromServer() {
+    request('http://norvig.com/big.txt', (err, res, body) => {
+        if (err) {
+            console.log(err);
+        }
+        var fileContents = body;
+        getUniqueWordAndFrequency(fileContents, 10).then(function (outputJson) {
+            console.log(JSON.stringify(outputJson));
+        }, function (err) {
+            console.error(err);
         });
+
     }, function (err) {
         console.error(err);
     });
-
-    // console.log(getUniqueWordAndFrequency(fileContents, 10));
-    // console.log(top10Words.topwords.forEach(word => {
-    //     console.log(word.word);
-    // }));
-    //   console.log(body.url);
-    //   console.log(body);
-}, function (err) {
-    console.error(err);
-});
-
-function processWords(top10Words) {
-    return new Promise(function (resolve, reject) {
-        var outputArray = [];
-        // console.log("me:"+top10Words);
-        // console.log("me2:"+top10Words.length);
-        // try {
-        var apisToBeCalled = top10Words.length;
-        for (let index = 0; index < top10Words.length; index++) {
-            console.log(index);
-            console.log(top10Words.length);
-            var wordElement = top10Words[index];
-            console.log(wordElement);
-            var wordDetailsApi = getWordDetails(wordElement);
-            wordDetailsApi.then(function (wordDetails) {
-                console.log(apisToBeCalled + " more..!");
-                outputArray.push({
-                    "word": wordDetails[1].word,
-                    "count": wordDetails[1].count,
-                    "synonyms": (wordDetails[0].def) ? wordDetails[0].def[0].tr : "No Synonyms found",
-                    "pos": (wordDetails[0].def) ? wordDetails[0].def[0].pos : "No Part of speech found"
-
-                });
-                apisToBeCalled--;
-                console.log(index, apisToBeCalled);
-                if (apisToBeCalled === 0) {
-                    console.log("Last callback call at index " + apisToBeCalled);
-                    // console.log(outputArray);
-                    resolve(outputArray);
-                }
-            }, function (err) {
-                console.error(err);
-            });
-        };
-        // } catch (err) {
-        //     console.error(err);
-        //     reject(err);
-        // }
-    });
 }
 
+//yandex api service call
 function getWordDetails(wordElement) {
     return new Promise(function (resolve, reject) {
-        request('https://dictionary.yandex.net/api/v1/dicservice.json/lookup?key=' + APIkey + '&lang=en-en&text=' + wordElement.word, (err, res, body) => {
+        request('https://dictionary.yandex.net/api/v1/dicservice.json/lookup?key=' + APIkey + '&lang=en-en&text=' + wordElement, (err, res, body) => {
             if (err) {
-                //console.log(err);
                 reject(err);
             }
-            // fileContents = body;
-            // console.log(fileContents.length);
-            // console.log(getUniqueWordFrequency(fileContents, 10));
-            //   console.log(body.url);
-            console.log("resolving " + wordElement.word);
-            resolve([body, wordElement]);
-            // console.log(body);
+            resolve(body);
         });
     });
 }
 
 function getUniqueWordAndFrequency(string, cutOff) {
-    var cleanString = string.replace(/[\.,-\/#!$%\^&\*;:{}=\-_`~()]/g, ""),
-        words = cleanString.split(' '),
-        frequencies = {},
-        word, i;
+    return new Promise(function (resolve, reject) {
+        var cleanString = string.replace(/[.,-/#!$%^&*;:{}=\-_`~()]/g, ""),
+            words = cleanString.split(' '),
+            frequencies = {},
+            word, i;
 
-    //to filter all empty elements from the array
-    words = words.filter(entry => /\S/.test(entry));
+        //to filter all empty elements from the array
+        words = words.filter(entry => /\S/.test(entry));
 
-    for (i = 0; i < words.length; i++) {
-        word = words[i];
-        frequencies[word] = frequencies[word] || 0;
-        frequencies[word]++;
-    }
+        for (i = 0; i < words.length; i++) {
+            word = words[i];
+            frequencies[word] = frequencies[word] || 0;
+            frequencies[word]++;
+        }
 
-    words = Object.keys(frequencies);
+        words = Object.keys(frequencies);
 
-    var topWordArray = words.sort(function (a, b) {
-        // console.log(frequencies[b] - frequencies[a]);
-        return frequencies[b] - frequencies[a];
-    }).slice(0, cutOff);
-    var returnArray = [];
-    topWordArray.forEach(word => {
-        // console.log("word: " + word + ", " + frequencies[word]);
-        returnArray.push({
-            "word": word,
-            "count": frequencies[word]
+        var topWordArray = words.sort(function (a, b) {
+            return frequencies[b] - frequencies[a];
+        }).slice(0, cutOff);
+
+        var returnArray = [];
+        var apisToBeCalled = topWordArray.length;
+        topWordArray.forEach(word => {
+            var wordDetailsApi = getWordDetails(word);
+            wordDetailsApi.then(function (wordDetails) {
+                wordDetails = JSON.parse(wordDetails);
+                var returnJsonObject = {
+                    "count": frequencies[word]
+                };
+                if (wordDetails.def[0]) {
+                    if ("syn" in wordDetails.def[0]) {
+                        returnJsonObject.synonyms = wordDetails.def[0].syn;
+                    } else {
+                        if ("mean" in wordDetails.def[0]) {
+                            returnJsonObject.synonyms = wordDetails.def[0].mean;
+                        } else {
+                            returnJsonObject.synonyms = "No Synonyms found";
+                        }
+                    }
+                    if ("pos" in wordDetails.def[0]) {
+                        returnJsonObject.pos = wordDetails.def[0].pos;
+                    } else {
+                        returnJsonObject.pos = "No Part of speech found";
+                    }
+                } else {
+                    returnJsonObject.synonyms = "No Synonyms found";
+                    returnJsonObject.pos = "No Part of speech found";
+                }
+
+                returnArray.push({
+                    "word": word,
+                    "output": returnJsonObject
+                });
+                apisToBeCalled--;
+                if (apisToBeCalled === 0) {
+                    returnArray = returnArray.sort(function (a, b) {
+                        return b.output.count - a.output.count
+                    })
+                    var returnJson = {
+                        "topwords": returnArray
+                    };
+                    resolve(returnJson);
+                }
+            }, function (err) {
+                console.error(err);
+                reject(err);
+            });
         });
     });
-    returnArray = returnArray.filter(entry => /\S/.test(entry));
-    var returnJson = {
-        "topwords": returnArray
-    };
-    return returnJson;
 }
